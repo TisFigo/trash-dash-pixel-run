@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Heart } from 'lucide-react';
@@ -26,12 +25,12 @@ const TrashDashGame = () => {
   const CANVAS_HEIGHT = 600;
   const SPAWN_RATE = 1500; // milliseconds
 
-  // Trash types with colors
+  // Trash types with larger sizes and colors
   const trashTypes = {
-    bottle: { color: '#4ade80', width: 16, height: 32 },
-    can: { color: '#f59e0b', width: 20, height: 24 },
-    bag: { color: '#374151', width: 24, height: 20 },
-    paper: { color: '#e5e7eb', width: 18, height: 18 }
+    bottle: { color: '#4ade80', width: 24, height: 48 },
+    can: { color: '#f59e0b', width: 30, height: 36 },
+    bag: { color: '#374151', width: 36, height: 30 },
+    paper: { color: '#e5e7eb', width: 27, height: 27 }
   };
 
   const drawPixelTrash = (ctx: CanvasRenderingContext2D, obj: GameObject) => {
@@ -41,17 +40,17 @@ const TrashDashGame = () => {
     // Draw pixelated trash with simple shapes
     ctx.fillRect(obj.x, obj.y, trash.width, trash.height);
     
-    // Add pixel details
+    // Add pixel details (scaled proportionally)
     ctx.fillStyle = '#000000';
     if (obj.type === 'bottle') {
-      ctx.fillRect(obj.x + 6, obj.y - 4, 4, 8); // bottle neck
-      ctx.fillRect(obj.x + 4, obj.y + 8, 8, 2); // label
+      ctx.fillRect(obj.x + 9, obj.y - 6, 6, 12); // bottle neck
+      ctx.fillRect(obj.x + 6, obj.y + 12, 12, 3); // label
     } else if (obj.type === 'can') {
-      ctx.fillRect(obj.x + 2, obj.y + 4, 16, 2); // can line
-      ctx.fillRect(obj.x + 2, obj.y + 12, 16, 2); // can line
+      ctx.fillRect(obj.x + 3, obj.y + 6, 24, 3); // can line
+      ctx.fillRect(obj.x + 3, obj.y + 18, 24, 3); // can line
     } else if (obj.type === 'bag') {
-      ctx.fillRect(obj.x + 4, obj.y + 4, 4, 4); // bag handle
-      ctx.fillRect(obj.x + 16, obj.y + 4, 4, 4); // bag handle
+      ctx.fillRect(obj.x + 6, obj.y + 6, 6, 6); // bag handle
+      ctx.fillRect(obj.x + 24, obj.y + 6, 6, 6); // bag handle
     }
   };
 
@@ -93,10 +92,10 @@ const TrashDashGame = () => {
     const type = types[Math.floor(Math.random() * types.length)];
     const newTrash: GameObject = {
       id: nextIdRef.current++,
-      x: Math.random() * (CANVAS_WIDTH - 30),
-      y: -40,
+      x: Math.random() * (CANVAS_WIDTH - 40),
+      y: -60,
       type,
-      speed: 2 + Math.random() * 2
+      speed: 1 + Math.random() * 1 // Slower speed: reduced from 2 + Math.random() * 2
     };
     
     gameObjectsRef.current = [...gameObjectsRef.current, newTrash];
