@@ -20,10 +20,14 @@ const TrashDashGame = () => {
   const gameObjectsRef = useRef<GameObject[]>([]);
   const nextIdRef = useRef(1);
   const lastSpawnRef = useRef(0);
+  const gameStartTimeRef = useRef(0);
 
   const CANVAS_WIDTH = 400;
   const CANVAS_HEIGHT = 600;
-  const SPAWN_RATE = 1500; // milliseconds
+  const BASE_SPAWN_RATE = 1500; // Base spawn rate in milliseconds
+  const MIN_SPAWN_RATE = 400; // Minimum spawn rate (maximum difficulty)
+  const BASE_SPEED = 1;
+  const MAX_SPEED_MULTIPLIER = 3;
 
   // Trash types with larger sizes and colors
   const trashTypes = {
@@ -31,6 +35,21 @@ const TrashDashGame = () => {
     can: { color: '#f59e0b', width: 30, height: 36 },
     bag: { color: '#374151', width: 36, height: 30 },
     paper: { color: '#e5e7eb', width: 27, height: 27 }
+  };
+
+  // Calculate difficulty based on time elapsed
+  const getDifficultyMultiplier = () => {
+    if (gameState !== 'playing') return 1;
+    const timeElapsed = Date.now() - gameStartTimeRef.current;
+    const seconds = timeElapsed / 1000;
+    // Gradually increase difficulty over 120 seconds
+    return Math.min(1 + (seconds / 120) * (MAX_SPEED_MULTIPLIER - 1), MAX_SPEED_MULTIPLIER);
+  };
+
+  const getCurrentSpawnRate = () => {
+    const difficultyMultiplier = getDifficultyMultiplier();
+    // Decrease spawn rate (faster spawning) as difficulty increases
+    return Math.max(BASE_SPAWN_RATE / difficultyMultiplier, MIN_SPAWN_RATE);
   };
 
   const drawPixelTrash = (ctx: CanvasRenderingContext2D, obj: GameObject) => {
@@ -90,12 +109,14 @@ const TrashDashGame = () => {
   const spawnTrash = useCallback(() => {
     const types: (keyof typeof trashTypes)[] = ['bottle', 'can', 'bag', 'paper'];
     const type = types[Math.floor(Math.random() * types.length)];
+    const difficultyMultiplier = getDifficultyMultiplier();
+    
     const newTrash: GameObject = {
       id: nextIdRef.current++,
       x: Math.random() * (CANVAS_WIDTH - 40),
       y: -60,
       type,
-      speed: 1 + Math.random() * 1 // Slower speed: reduced from 2 + Math.random() * 2
+      speed: (BASE_SPEED + Math.random() * 1) * difficultyMultiplier
     };
     
     gameObjectsRef.current = [...gameObjectsRef.current, newTrash];
@@ -106,9 +127,10 @@ const TrashDashGame = () => {
     if (gameState !== 'playing') return;
 
     const now = Date.now();
+    const currentSpawnRate = getCurrentSpawnRate();
     
-    // Spawn new trash
-    if (now - lastSpawnRef.current > SPAWN_RATE) {
+    // Spawn new trash with dynamic rate
+    if (now - lastSpawnRef.current > currentSpawnRate) {
       spawnTrash();
       lastSpawnRef.current = now;
     }
@@ -169,17 +191,32 @@ const TrashDashGame = () => {
     gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, [updateGame, render]);
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleClick = (event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (gameState !== 'playing') return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    let x, y;
 
-    // Check if click hit any trash
+    // Handle both mouse and touch events
+    if ('touches' in event) {
+      const touch = event.touches[0] || event.changedTouches[0];
+      x = touch.clientX - rect.left;
+      y = touch.clientY - rect.top;
+    } else {
+      x = event.clientX - rect.left;
+      y = event.clientY - rect.top;
+    }
+
+    // Adjust for canvas scaling on mobile
+    const scaleX = CANVAS_WIDTH / rect.width;
+    const scaleY = CANVAS_HEIGHT / rect.height;
+    x *= scaleX;
+    y *= scaleY;
+
+    // Check if click/touch hit any trash
     gameObjectsRef.current = gameObjectsRef.current.filter(obj => {
       const trash = trashTypes[obj.type];
       if (x >= obj.x && x <= obj.x + trash.width &&
@@ -201,6 +238,7 @@ const TrashDashGame = () => {
     gameObjectsRef.current = [];
     nextIdRef.current = 1;
     lastSpawnRef.current = Date.now();
+    gameStartTimeRef.current = Date.now();
   };
 
   const resetGame = () => {
@@ -235,35 +273,44 @@ const TrashDashGame = () => {
     }
   }, [lives, gameState]);
 
+  const currentDifficulty = getDifficultyMultiplier();
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-400 to-green-400 p-4">
-      <div className="relative">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-400 to-green-400 p-2 sm:p-4">
+      <div className="relative max-w-full">
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          onClick={handleCanvasClick}
-          className="border-4 border-gray-800 rounded-lg shadow-2xl cursor-crosshair"
-          style={{ imageRendering: 'pixelated' }}
+          onClick={handleClick}
+          onTouchStart={handleClick}
+          onTouchEnd={(e) => e.preventDefault()}
+          className="border-4 border-gray-800 rounded-lg shadow-2xl cursor-pointer touch-none max-w-full h-auto"
+          style={{ 
+            imageRendering: 'pixelated',
+            maxWidth: '100vw',
+            maxHeight: '70vh'
+          }}
         />
         
         {gameState === 'ready' && (
-          <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white rounded-lg">
-            <h1 className="text-4xl font-bold mb-4 text-center pixel-font">TRASH DASH</h1>
-            <p className="text-lg mb-2 text-center">Click the falling garbage!</p>
-            <p className="text-sm mb-6 text-center">Don't let more than 5 pieces fall!</p>
-            <Button onClick={startGame} className="bg-green-500 hover:bg-green-600 text-xl px-8 py-3">
+          <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white rounded-lg p-4">
+            <h1 className="text-2xl sm:text-4xl font-bold mb-4 text-center pixel-font">TRASH DASH</h1>
+            <p className="text-sm sm:text-lg mb-2 text-center">Tap/Click the falling garbage!</p>
+            <p className="text-xs sm:text-sm mb-4 text-center">Don't let more than 5 pieces fall!</p>
+            <p className="text-xs sm:text-sm mb-6 text-center text-yellow-300">Speed increases over time!</p>
+            <Button onClick={startGame} className="bg-green-500 hover:bg-green-600 text-lg sm:text-xl px-6 sm:px-8 py-2 sm:py-3">
               START GAME
             </Button>
           </div>
         )}
 
         {gameState === 'gameOver' && (
-          <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white rounded-lg">
-            <h1 className="text-4xl font-bold mb-4 text-red-400">GAME OVER</h1>
-            <p className="text-2xl mb-2">Final Score: {score}</p>
-            <p className="text-lg mb-6">Too much trash hit the ground!</p>
-            <Button onClick={resetGame} className="bg-blue-500 hover:bg-blue-600 text-xl px-8 py-3">
+          <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white rounded-lg p-4">
+            <h1 className="text-2xl sm:text-4xl font-bold mb-4 text-red-400">GAME OVER</h1>
+            <p className="text-lg sm:text-2xl mb-2">Final Score: {score}</p>
+            <p className="text-sm sm:text-lg mb-6">Too much trash hit the ground!</p>
+            <Button onClick={resetGame} className="bg-blue-500 hover:bg-blue-600 text-lg sm:text-xl px-6 sm:px-8 py-2 sm:py-3">
               <RotateCcw className="mr-2" size={20} />
               PLAY AGAIN
             </Button>
@@ -271,18 +318,25 @@ const TrashDashGame = () => {
         )}
       </div>
 
-      <div className="mt-6 text-center">
-        <div className="flex items-center justify-center gap-4 mb-2">
+      <div className="mt-4 sm:mt-6 text-center px-2">
+        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-xl">Score: {score}</span>
+            <span className="text-white font-bold text-lg sm:text-xl">Score: {score}</span>
           </div>
           <div className="flex items-center gap-2">
             <Heart className="text-red-500" size={20} />
-            <span className="text-white font-bold text-xl">Lives: {lives}</span>
+            <span className="text-white font-bold text-lg sm:text-xl">Lives: {lives}</span>
           </div>
+          {gameState === 'playing' && (
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-300 font-bold text-sm sm:text-lg">
+                Speed: {currentDifficulty.toFixed(1)}x
+              </span>
+            </div>
+          )}
         </div>
-        <p className="text-white text-sm opacity-75">
-          Click on the falling trash to collect it before it hits the ground!
+        <p className="text-white text-xs sm:text-sm opacity-75">
+          Tap/Click on the falling trash to collect it before it hits the ground!
         </p>
       </div>
     </div>
