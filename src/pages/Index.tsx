@@ -24,7 +24,7 @@ const Index = () => {
             <div className="mt-4 p-4 bg-gray-50 rounded border">
               <h3 className="font-semibold mb-2">How to embed:</h3>
               <code className="text-xs bg-gray-200 p-2 rounded block">
-                {`<iframe src="your-domain.com/embed" width="400" height="600"></iframe>`}
+                {`<iframe src="${window.location.origin}/embed" width="400" height="600"></iframe>`}
               </code>
             </div>
           </div>
